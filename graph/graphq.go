@@ -189,10 +189,10 @@ func (g *Graph) BFS(rootIdx Index, cb func(idx Index)) {
 
 		el := queue.Pop()
 		elIdx := el.Value.(Index)
-		node := g.Node(elIdx)
 
-		cb(elIdx)
-		fmt.Printf("[%d]%v -- ", node.Index, node.Value)
+		if cb != nil {
+			cb(elIdx)
+		}
 
 		neighbors := g.Neighbors(elIdx)
 		for _, i := range neighbors {

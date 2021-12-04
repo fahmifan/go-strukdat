@@ -3,6 +3,7 @@ package graph
 import (
 	"encoding/json"
 	"log"
+	"sync"
 	"testing"
 )
 
@@ -71,11 +72,6 @@ func TestGraph_Edges(t *testing.T) {
 	}
 }
 
-/**
-a ----- b
-|	     \
-c -- d -- e
-*/
 func TestGraph_BFS(t *testing.T) {
 	gr := New()
 	n0 := gr.AddNode(0)
@@ -90,8 +86,6 @@ func TestGraph_BFS(t *testing.T) {
 	gr.AddEdge(n2, n3, 1)
 	gr.AddEdge(n3, n3, 1)
 
-	t.Log(dump(gr.nodes))
-
 	idxs := make(map[Index]struct{})
 	gr.BFS(n2, func(idx Index) {
 		idxs[idx] = struct{}{}
@@ -103,6 +97,37 @@ func TestGraph_BFS(t *testing.T) {
 			t.Fatalf("not found: %d", idx)
 		}
 	}
+}
+
+func TestGraph_Race(t *testing.T) {
+	graph := New()
+	wg := sync.WaitGroup{}
+	wg.Add(100)
+	for i := 0; i < 100; i++ {
+		go func(i int) {
+			defer wg.Done()
+			graph.AddNode(i)
+		}(i)
+	}
+
+	wg.Add(100)
+	for i := 0; i < 100; i++ {
+		go func(i Index) {
+			defer wg.Done()
+			graph.AddEdge(Index(i%11), Index(i%20), 1)
+		}(Index(i))
+	}
+
+	wg.Add(100)
+	noop := func(index Index) {}
+	for i := 0; i < 100; i++ {
+		go func(i Index) {
+			defer wg.Done()
+			graph.BFS(Index(i), noop)
+		}(Index(i))
+	}
+
+	wg.Wait()
 }
 
 func dump(i interface{}) string {
