@@ -1,8 +1,8 @@
 package graph
 
 import (
+	"container/list"
 	"fmt"
-	"log"
 	"os"
 	"sync"
 )
@@ -20,47 +20,56 @@ type Edge struct {
 }
 
 type Node struct {
-	lock  sync.RWMutex
-	edges map[Index]Weight
+	lock sync.RWMutex
 
+	Edges map[Index]Weight
 	Index Index
 	Value interface{}
 }
 
-// AddEdge :nodoc:
+// AddEdge add an Edge from the Node to n2
 func (n *Node) AddEdge(n2 Index, weight Weight) {
 	n.lock.Lock()
-	n.edges[n2] = weight
+	n.Edges[n2] = weight
 	n.lock.Unlock()
 }
 
-// Graph is a bidirectional weighted graph
+// Graph is a bidirectional weighted adjacency list graph
 type Graph struct {
 	nodes []*Node
 	lock  sync.RWMutex
 }
 
+// New return new Graph
 func New() *Graph {
 	return &Graph{}
 }
 
+// Node return the node of idx
+func (g *Graph) Node(idx Index) *Node {
+	if !g.validateIdx(idx) {
+		return nil
+	}
+	g.lock.RLock()
+	node := g.nodes[idx]
+	g.lock.RUnlock()
+	return node
+}
+
+// AddNode add new node to the graph
 func (g *Graph) AddNode(value interface{}) (index Index) {
 	if value == nil {
 		return
 	}
 
-	index = g.makeNodeIndex()
-	node := &Node{Index: index, Value: value, edges: make(map[Index]Weight)}
+	index = g.nextIndex()
+	node := &Node{Index: index, Value: value, Edges: make(map[Index]Weight)}
 
 	g.lock.Lock()
 	g.nodes = append(g.nodes, node)
 	g.lock.Unlock()
 
 	return
-}
-
-func (g *Graph) makeNodeIndex() Index {
-	return Index(len(g.nodes))
 }
 
 // AddEdge add an weigheted edge from n1 --> n2
@@ -84,7 +93,7 @@ func (g *Graph) AddEdge(n1, n2 Index, weight Weight) {
 
 // Neighbors return all neighbors index of the idx
 func (g *Graph) Neighbors(idx Index) (neigbors []Index) {
-	if idx < 0 || int(idx) > g.nodeSize()-1 {
+	if idx < 0 || int(idx) > g.nodeLen()-1 {
 		return nil
 	}
 
@@ -92,10 +101,8 @@ func (g *Graph) Neighbors(idx Index) (neigbors []Index) {
 	node := g.nodes[idx]
 	g.lock.RUnlock()
 
-	log.Println(node)
-
 	node.lock.RLock()
-	for edge := range node.edges {
+	for edge := range node.Edges {
 		neigbors = append(neigbors, edge)
 	}
 	node.lock.RLock()
@@ -115,7 +122,7 @@ func (g *Graph) Edges() (edges []Edge) {
 		}
 
 		node.lock.RLock()
-		for edgeIdx, weight := range node.edges {
+		for edgeIdx, weight := range node.Edges {
 			edges = append(edges, Edge{
 				StartIdx: node.Index,
 				EndIdx:   edgeIdx,
@@ -127,9 +134,73 @@ func (g *Graph) Edges() (edges []Edge) {
 	return edges
 }
 
-func (g *Graph) nodeSize() int {
+func (g *Graph) nodeLen() int {
 	g.lock.RLock()
 	size := len(g.nodes)
 	g.lock.RUnlock()
 	return size
+}
+
+func (g *Graph) nextIndex() Index {
+	return Index(g.nodeLen())
+}
+
+// Queue a wrapper queue for std list.List
+type Queue struct {
+	list *list.List
+}
+
+func NewQueue() *Queue {
+	return &Queue{list: list.New()}
+}
+
+func (q *Queue) Enqueue(item interface{}) *list.Element {
+	return q.list.PushBack(item)
+}
+
+func (q *Queue) Pop() *list.Element {
+	back := q.list.Back()
+	q.list.Remove(back)
+	return back
+}
+
+func (q *Queue) IsEmpty() bool {
+	return q.list.Len() <= 0
+}
+
+func (g *Graph) validateIdx(idx Index) bool {
+	if idx < 0 || int(idx) > g.nodeLen()-1 {
+		return false
+	}
+	return true
+}
+
+func (g *Graph) BFS(rootIdx Index, cb func(idx Index)) {
+	queue := NewQueue()
+	visitedIdx := make([]bool, g.nodeLen()+1)
+
+	queue.Enqueue(rootIdx)
+	visitedIdx[rootIdx] = true
+
+	for {
+		if queue.IsEmpty() {
+			break
+		}
+
+		el := queue.Pop()
+		elIdx := el.Value.(Index)
+		node := g.Node(elIdx)
+
+		cb(elIdx)
+		fmt.Printf("[%d]%v -- ", node.Index, node.Value)
+
+		neighbors := g.Neighbors(elIdx)
+		for _, i := range neighbors {
+			if !visitedIdx[i] {
+				queue.Enqueue(Index(i))
+				visitedIdx[i] = true
+				continue
+			}
+		}
+	}
 }

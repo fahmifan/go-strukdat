@@ -1,6 +1,7 @@
 package graph
 
 import (
+	"encoding/json"
 	"log"
 	"testing"
 )
@@ -68,5 +69,43 @@ func TestGraph_Edges(t *testing.T) {
 		t.Log(edges)
 		t.Fatalf("not found: startIdx:%d, endIdx:%d, weight:%d", n3, n1, 3)
 	}
+}
 
+/**
+a ----- b
+|	     \
+c -- d -- e
+*/
+func TestGraph_BFS(t *testing.T) {
+	gr := New()
+	n0 := gr.AddNode(0)
+	n1 := gr.AddNode(1)
+	n2 := gr.AddNode(2)
+	n3 := gr.AddNode(3)
+
+	gr.AddEdge(n0, n1, 1)
+	gr.AddEdge(n0, n2, 1)
+	gr.AddEdge(n1, n2, 1)
+	gr.AddEdge(n2, n0, 1)
+	gr.AddEdge(n2, n3, 1)
+	gr.AddEdge(n3, n3, 1)
+
+	t.Log(dump(gr.nodes))
+
+	idxs := make(map[Index]struct{})
+	gr.BFS(n2, func(idx Index) {
+		idxs[idx] = struct{}{}
+	})
+
+	expecteds := []Index{2, 0, 3, 1}
+	for _, idx := range expecteds {
+		if _, ok := idxs[idx]; !ok {
+			t.Fatalf("not found: %d", idx)
+		}
+	}
+}
+
+func dump(i interface{}) string {
+	bt, _ := json.Marshal(i)
+	return string(bt)
 }
