@@ -19,9 +19,9 @@ type Edge struct {
 }
 
 type Node struct {
-	lock sync.RWMutex
+	lock  sync.RWMutex
+	edges map[Index]Weight
 
-	Edges map[Index]Weight
 	Index Index
 	Value interface{}
 }
@@ -29,7 +29,7 @@ type Node struct {
 // AddEdge add an Edge from the Node to n2
 func (n *Node) AddEdge(n2 Index, weight Weight) {
 	n.lock.Lock()
-	n.Edges[n2] = weight
+	n.edges[n2] = weight
 	n.lock.Unlock()
 }
 
@@ -62,7 +62,7 @@ func (g *Graph) AddNode(value interface{}) (index Index) {
 	}
 
 	index = g.nextIndex()
-	node := &Node{Index: index, Value: value, Edges: make(map[Index]Weight)}
+	node := &Node{Index: index, Value: value, edges: make(map[Index]Weight)}
 
 	g.lock.Lock()
 	g.nodes = append(g.nodes, node)
@@ -101,7 +101,7 @@ func (g *Graph) Neighbors(idx Index) (neigbors []Index) {
 	g.lock.RUnlock()
 
 	node.lock.RLock()
-	for edge := range node.Edges {
+	for edge := range node.edges {
 		neigbors = append(neigbors, edge)
 	}
 	node.lock.RLock()
@@ -121,7 +121,7 @@ func (g *Graph) Edges() (edges []Edge) {
 		}
 
 		node.lock.RLock()
-		for edgeIdx, weight := range node.Edges {
+		for edgeIdx, weight := range node.edges {
 			edges = append(edges, Edge{
 				StartIdx: node.Index,
 				EndIdx:   edgeIdx,
